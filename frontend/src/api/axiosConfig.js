@@ -1,23 +1,35 @@
 import axios from 'axios';
 
 const instance = axios.create({
-  baseURL: '/https://instarent.onrender.com/api',
-  headers: { 'Content-Type': 'application/json' },
+  baseURL: 'https://instarent.onrender.com/api', // ✅ include /api here
+  headers: {
+    'Content-Type': 'application/json',
+  },
 });
 
-// Attach JWT token from localStorage to every request
+// Attach JWT token safely
 instance.interceptors.request.use(
   (config) => {
-    const persisted = localStorage.getItem('persist:root');
-    if (persisted) {
-      try {
+    try {
+      const persisted = localStorage.getItem('persist:root');
+
+      if (persisted) {
         const root = JSON.parse(persisted);
-        const auth = JSON.parse(root.auth);
-        if (auth?.user?.token) {
-          config.headers.Authorization = `Bearer ${auth.user.token}`;
+
+        if (root.auth) {
+          const auth = JSON.parse(root.auth);
+
+          const token = auth?.user?.token;
+
+          if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+          }
         }
-      } catch (_) {}
+      }
+    } catch (error) {
+      console.log('Token parsing error:', error);
     }
+
     return config;
   },
   (error) => Promise.reject(error)

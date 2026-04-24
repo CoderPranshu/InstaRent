@@ -2,41 +2,53 @@ const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const morgan = require('morgan');
+const path = require('path');
+
 const connectDB = require('./config/db');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 
+// Load environment variables
 dotenv.config();
+
+// Connect to database
 connectDB();
 
 const app = express();
 
-// CORS Configuration
+// Allowed frontend origins
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
   process.env.FRONTEND_URL || 'https://instarent-2.onrender.com',
 ];
 
+// CORS middleware
 app.use(cors({
-  origin: (origin, callback) => {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like Postman or mobile apps)
     if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
+      return callback(null, true);
     }
+    // Reject unknown origins silently
+    return callback(null, false);
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  maxAge: 86400,
 }));
+
+// Handle preflight requests
+app.options('*', cors());
+
+// Body parsing middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-if (process.env.NODE_ENV === 'development') app.use(morgan('dev'));
 
-// Serve uploaded images statically (dev fallback when Cloudinary not configured)
-const path = require('path');
-app.use('/uploads', require('express').static(path.join(__dirname, 'uploads')));
+// Logger (only in development)
+if (process.env.NODE_ENV === 'development') {
+  app.use(morgan('dev'));
+}
+
+// Serve static uploaded files (fallback if Cloudinary not used)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Routes
 app.use('/api/auth', require('./routes/authRoutes'));
@@ -50,12 +62,20 @@ app.use('/api/messages', require('./routes/messageRoutes'));
 app.use('/api/cart', require('./routes/cartRoutes'));
 app.use('/api/orders', require('./routes/orderRoutes'));
 
-// Health check
-app.get('/api/health', (req, res) => res.json({ status: 'OK', message: 'INSTARENTAL API running 🚀' }));
+// Health check route
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'OK',
+    message: 'INSTARENTAL API running 🚀',
+  });
+});
 
-// Error handling
+// Error handling middleware
 app.use(notFound);
 app.use(errorHandler);
 
+// Start server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT} in ${process.env.NODE_ENV} mode`));
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT} in ${process.env.NODE_ENV} mode`);
+});
